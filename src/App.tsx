@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import {useEffect, useState, type FormEvent } from 'react';
 import {
   addTask,
   filterTasks,
@@ -9,6 +9,45 @@ import {
 } from './lib/tasks';
 import './App.css';
 
+const STORAGE_KEY = 'task-app.tasks.v1';
+
+function isTask(value: unknown): value is Task {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const task = value as Record<string, unknown>;
+
+  return (
+    typeof task.id === 'string' &&
+    typeof task.title === 'string' &&
+    (task.status === 'todo' ||
+      task.status === 'doing' ||
+      task.status === 'done') &&
+    typeof task.createdAt === 'string'
+  );
+}
+
+function loadTasks(): Task[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(isTask);
+  } catch {
+    return [];
+  }
+}
+
+function saveTasks(tasks: Task[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  } catch (error) {
+    console.error('保存任务失败', error);
+  }
+}
+
 const filterLabels: Record<TaskFilter, string> = {
   all: '全部',
   active: '未完成',
@@ -16,12 +55,16 @@ const filterLabels: Record<TaskFilter, string> = {
 };
 
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+ const [tasks, setTasks] = useState<Task[]>(loadTasks);
   const [title, setTitle] = useState('');
   const [filter, setFilter] = useState<TaskFilter>('all');
 
   const visibleTasks = filterTasks(tasks, filter);
   const doneCount = tasks.filter((task) => task.status === 'done').length;
+
+  useEffect(() => {
+  saveTasks(tasks);
+}, [tasks]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
